@@ -1,23 +1,462 @@
-import {FaceDetector,FilesetResolver} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304/+esm";
-const $=id=>document.getElementById(id);
-const view=$("viewCanvas"),ctx=view.getContext("2d");
-const clean=document.createElement("canvas"),bctx=clean.getContext("2d",{willReadFrequently:true});
-let img=null,url=null,detector=null,face=null,lastROI=null,candidates=[];
-const typeInfo={I:{label:"I型（狭く鋭い形態）",color:"#dc2626"},B:{label:"B型（境界明瞭な形態）",color:"#2563eb"},R:{label:"R型（幅広い形態）",color:"#059669"}};
-const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-async function initDetector(){if(detector)return;try{$("modelStatus").textContent="顔モデル読込中";const vision=await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304/wasm");detector=await FaceDetector.createFromOptions(vision,{baseOptions:{modelAssetPath:"https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/latest/blaze_face_short_range.tflite"},runningMode:"IMAGE",minDetectionConfidence:.5});$("modelStatus").textContent="顔検出OK";$("modelStatus").className="pill ok"}catch(e){console.error(e);$("modelStatus").textContent="顔モデルなし";$("modelStatus").className="pill bad"}}
-function best(res){if(!res?.detections?.length)return null;return res.detections.slice().sort((a,b)=>b.boundingBox.width*b.boundingBox.height-a.boundingBox.width*a.boundingBox.height)[0]}
-function drawBase(){if(!img)return;ctx.clearRect(0,0,view.width,view.height);ctx.drawImage(clean,0,0);if(face){ctx.save();ctx.strokeStyle="rgba(255,255,255,.55)";ctx.setLineDash([8,6]);ctx.lineWidth=Math.max(1,view.width/500);ctx.strokeRect(face.x,face.y,face.w,face.h);ctx.restore()}if(lastROI){ctx.save();ctx.strokeStyle="#fbbf24";ctx.lineWidth=Math.max(2,view.width/360);ctx.strokeRect(lastROI.x,lastROI.y,lastROI.w,lastROI.h);ctx.restore()}}
-async function load(file){if(!file)return;if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(file);const im=new Image();im.onload=async()=>{img=im;const s=Math.min(1,960/im.naturalWidth,1400/im.naturalHeight);view.width=clean.width=Math.round(im.naturalWidth*s);view.height=clean.height=Math.round(im.naturalHeight*s);bctx.drawImage(im,0,0,clean.width,clean.height);ctx.drawImage(clean,0,0);$("emptyState").style.display="none";$("fileName").textContent=`${file.name} / ${im.naturalWidth}×${im.naturalHeight}`;$("analyzeBtn").disabled=false;$("resultCard").hidden=true;face=null;lastROI=null;candidates=[];await initDetector();if(detector){try{const d=best(detector.detect(clean));if(d){face={x:d.boundingBox.originX,y:d.boundingBox.originY,w:d.boundingBox.width,h:d.boundingBox.height};$("analysisMessage").textContent="顔を検出しました。自動では頬領域を優先します。"}else $("analysisMessage").textContent="顔全体は未検出です。頬アップとして画像全体を解析できます。"}catch(e){console.warn(e)}}drawBase()};im.src=url}
-function rectClamp(r){const W=view.width,H=view.height,x=clamp(Math.round(r.x),0,W-1),y=clamp(Math.round(r.y),0,H-1);return {...r,x,y,w:clamp(Math.round(r.w),1,W-x),h:clamp(Math.round(r.h),1,H-y)}}
-function getROI(){const mode=$("roiMode").value,W=view.width,H=view.height;if(mode==="full"||!face)return{x:Math.round(W*.04),y:Math.round(H*.05),w:Math.round(W*.92),h:Math.round(H*.9),name:"画像全体"};const f=face,y=f.y+f.h*.42,h=f.h*.36;const L=rectClamp({x:f.x+f.w*.08,y,w:f.w*.34,h,name:"左頬"}),R=rectClamp({x:f.x+f.w*.58,y,w:f.w*.34,h,name:"右頬"});if(mode==="left")return L;if(mode==="right")return R;return rectClamp({x:f.x+f.w*.06,y,w:f.w*.88,h,name:"左右頬"})}
-function integral(g,w,h){const I=new Float64Array((w+1)*(h+1));for(let y=1;y<=h;y++){let row=0;for(let x=1;x<=w;x++){row+=g[(y-1)*w+x-1];I[y*(w+1)+x]=I[(y-1)*(w+1)+x]+row}}return I}
-function mean(I,w,h,x,y,r){const x0=Math.max(0,x-r),y0=Math.max(0,y-r),x1=Math.min(w-1,x+r),y1=Math.min(h-1,y+r),W=w+1;return(I[(y1+1)*W+x1+1]-I[y0*W+x1+1]-I[(y1+1)*W+x0]+I[y0*W+x0])/((x1-x0+1)*(y1-y0+1))}
-function percentile(vals,p){const a=vals.slice().sort((x,y)=>x-y);return a.length?a[Math.floor(clamp(p,0,1)*(a.length-1))]:0}
-function components(mask,score,w,h,minA,maxA){const seen=new Uint8Array(mask.length),out=[],q=new Int32Array(mask.length);for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){const st=y*w+x;if(!mask[st]||seen[st])continue;let head=0,tail=0;q[tail++]=st;seen[st]=1;let area=0,minX=x,maxX=x,minY=y,maxY=y,sum=0,maxS=0;while(head<tail){const i=q[head++],cy=Math.floor(i/w),cx=i-cy*w;area++;sum+=score[i];maxS=Math.max(maxS,score[i]);minX=Math.min(minX,cx);maxX=Math.max(maxX,cx);minY=Math.min(minY,cy);maxY=Math.max(maxY,cy);for(let yy=cy-1;yy<=cy+1;yy++)for(let xx=cx-1;xx<=cx+1;xx++){const ni=yy*w+xx;if(xx>=0&&yy>=0&&xx<w&&yy<h&&mask[ni]&&!seen[ni]){seen[ni]=1;q[tail++]=ni}}}if(area>=minA&&area<=maxA)out.push({area,minX,maxX,minY,maxY,meanScore:sum/area,maxScore:maxS})}return out}
-function analyze(){const ROI=getROI();lastROI=ROI;const s=Math.min(1,520/ROI.w,520/ROI.h),w=Math.max(80,Math.round(ROI.w*s)),h=Math.max(80,Math.round(ROI.h*s));const off=document.createElement("canvas");off.width=w;off.height=h;const ox=off.getContext("2d",{willReadFrequently:true});ox.drawImage(clean,ROI.x,ROI.y,ROI.w,ROI.h,0,0,w,h);const d=ox.getImageData(0,0,w,h).data,g=new Float32Array(w*h);for(let i=0,j=0;i<d.length;i+=4,j++)g[j]=.24*d[i]+.68*d[i+1]+.08*d[i+2];const I=integral(g,w,h),sc=new Float32Array(w*h),vals=[];let gradSum=0,gradN=0;const r1=Math.max(2,Math.round(Math.min(w,h)*.012)),r2=Math.max(r1+2,Math.round(Math.min(w,h)*.035));for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){const i=y*w+x,m1=mean(I,w,h,x,y,r1),m2=mean(I,w,h,x,y,r2),gx=(g[i+1]-g[i-1])*.5,gy=(g[i+w]-g[i-w])*.5,gr=Math.hypot(gx,gy);gradSum+=gr;gradN++;const v=Math.max(0,m1-g[i])*.68+Math.max(0,m2-g[i])*.52+Math.min(gr,20)*.18;sc[i]=v;vals.push(v)}const sens=+$("sensitivity").value,p=clamp(.965-(sens-50)*.00065,.91,.985),thr=Math.max(3.2,percentile(vals,p));const mask=new Uint8Array(w*h);for(let i=0;i<sc.length;i++)if(sc[i]>=thr)mask[i]=1;let cs=components(mask,sc,w,h,Math.max(3,Math.round(w*h*.000015)),Math.max(30,Math.round(w*h*.018)));if($("roiMode").value==="auto"&&face)cs=cs.filter(c=>{const x=(c.minX+c.maxX)/2/w;return !(x>.43&&x<.57)});const sx=ROI.w/w,sy=ROI.h/h,faceW=face?face.w:view.width,areaRatio=cs.reduce((a,c)=>a+c.area,0)/(w*h);cs=cs.map(c=>{const bw=(c.maxX-c.minX+1)*sx,bh=(c.maxY-c.minY+1)*sy,x=ROI.x+c.minX*sx,y=ROI.y+c.minY*sy,nw=Math.max(bw,bh)/faceW,fill=c.area/((c.maxX-c.minX+1)*(c.maxY-c.minY+1)),sharp=c.maxScore/(c.meanScore+1e-6),type=nw<.018&&sharp>1.5?"I":nw<.055&&(fill>.18||sharp>1.35)?"B":"R";return{type,confidence:clamp((c.meanScore-thr)/(thr*1.2)+.52,.5,.94),bw,bh,x,y,cx:x+bw/2,cy:y+bh/2,meanScore:c.meanScore,sharp,fill}}).sort((a,b)=>b.meanScore-a.meanScore).slice(0,120).map((c,i)=>({...c,id:i+1}));return{ROI,cs,areaRatio,roughness:gradN?gradSum/gradN:0}}
-function drawResults(list){drawBase();ctx.save();ctx.lineWidth=Math.max(1.5,view.width/500);ctx.font=`${Math.max(9,view.width/75)}px system-ui`;list.forEach((c,i)=>{const q=typeInfo[c.type],pad=Math.max(2,Math.min(c.bw,c.bh)*.3);ctx.strokeStyle=q.color;ctx.fillStyle=q.color;ctx.strokeRect(c.x-pad,c.y-pad,c.bw+pad*2,c.bh+pad*2);if(i<35)ctx.fillText(c.id,c.x,c.y-3)});ctx.restore()}
-function highlight(c){drawResults(candidates);ctx.save();ctx.strokeStyle="#fbbf24";ctx.lineWidth=Math.max(3,view.width/250);ctx.beginPath();ctx.arc(c.cx,c.cy,Math.max(c.bw,c.bh)*1.2+8,0,Math.PI*2);ctx.stroke();ctx.restore();$("analysisCard").scrollIntoView({behavior:"smooth",block:"center"})}
-function renderList(list){const el=$("candidateList");el.innerHTML="";list.slice(0,40).forEach(c=>{const b=document.createElement("button");b.className="candidate";b.innerHTML=`<span class="id">#${String(c.id).padStart(3,"0")}</span><span><div class="main">${typeInfo[c.type].label}</div><div class="sub">size ${c.bw.toFixed(1)}×${c.bh.toFixed(1)} px / edge ${c.sharp.toFixed(2)}</div></span><span class="score">${Math.round(c.confidence*100)}%</span>`;b.onclick=()=>highlight(c);el.appendChild(b)});if(!list.length)el.innerHTML='<div class="note">現在の感度では候補を検出しませんでした。</div>'}
-function run(){if(!img)return;$("analysisMessage").textContent="解析中…";setTimeout(()=>{try{const r=analyze();candidates=r.cs;drawResults(candidates);const n={I:0,B:0,R:0};candidates.forEach(c=>n[c.type]++);$("candidateCount").textContent=candidates.length;$("areaRatio").textContent=(r.areaRatio*100).toFixed(2)+"%";$("roughness").textContent=r.roughness.toFixed(2);$("roiName").textContent=r.ROI.name;$("iceCount").textContent=n.I;$("boxCount").textContent=n.B;$("rollCount").textContent=n.R;renderList(candidates);$("resultCard").hidden=false;$("analysisMessage").textContent=`解析完了：${candidates.length}個の凹み候補。候補一覧をタップすると位置を確認できます。`;$("resultCard").scrollIntoView({behavior:"smooth",block:"start"})}catch(e){console.error(e);$("analysisMessage").textContent="解析中にエラーが発生しました。別の写真で再試行してください。"}},40)}
-$("imageInput").addEventListener("change",e=>load(e.target.files?.[0]));$("analyzeBtn").onclick=run;$("sensitivity").addEventListener("input",e=>$("sensitivityOut").textContent=e.target.value);$("roiMode").addEventListener("change",()=>{if(img){lastROI=getROI();drawBase()}});initDetector();if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(()=>{});
+const regions = [
+  {key:"forehead", name:"額", instruction:"髪をできるだけ避けて、額の中央が入るように撮ります。"},
+  {key:"rightCheek", name:"右頬", instruction:"鼻・口・耳・マスクの縁を入れすぎず、頬の中心に近づいて撮ります。"},
+  {key:"leftCheek", name:"左頬", instruction:"鼻・口・耳・マスクの縁を入れすぎず、頬の中心に近づいて撮ります。"},
+  {key:"nose", name:"鼻", instruction:"鼻筋と小鼻が見えるように。毛穴・赤みとの区別に使う部位です。"}
+];
+
+const state = {
+  current: 0,
+  sessionName: "",
+  lightingPreset: "front",
+  regions: {}
+};
+
+const $ = id => document.getElementById(id);
+const wizard = $("wizard");
+const summaryTabs = $("summaryTabs");
+const analysisCanvas = $("analysisCanvas");
+const actx = analysisCanvas.getContext("2d", {willReadFrequently:true});
+
+let frontURL = null;
+let rakingURL = null;
+let lastMetrics = null;
+
+function buildWizard(){
+  wizard.innerHTML = "";
+  regions.forEach((r, i) => {
+    const d = document.createElement("div");
+    d.className = "step";
+    if (i === state.current) d.classList.add("active");
+    if (state.regions[r.key]) d.classList.add("done");
+    d.textContent = `${i+1}. ${r.name}`;
+    wizard.appendChild(d);
+  });
+}
+
+function currentRegion(){
+  return regions[state.current];
+}
+
+function updateRegionUI(){
+  const r = currentRegion();
+  $("regionHeading").textContent = `3. ${r.name} の登録`;
+  $("progressText").textContent = `${state.current + 1} / ${regions.length}`;
+  $("regionInstruction").innerHTML = `<b>${r.name}</b>: ${r.instruction}`;
+  $("frontInput").value = "";
+  $("rakingInput").value = "";
+  clearLocalPreviews();
+
+  const saved = state.regions[r.key];
+  if(saved){
+    if(saved.frontDataUrl) $("frontPreview").src = saved.frontDataUrl;
+    renderSavedOverlay(saved);
+    fillMetrics(saved.metrics);
+  } else {
+    clearMetrics();
+  }
+  buildWizard();
+  renderSummary();
+}
+
+function clearLocalPreviews(){
+  $("frontPreview").removeAttribute("src");
+  resizeCanvas(analysisCanvas);
+  actx.fillStyle = "#111";
+  actx.fillRect(0,0,analysisCanvas.width,analysisCanvas.height);
+}
+
+function resizeCanvas(c){
+  const cssW = c.clientWidth || 320;
+  const cssH = cssW * 4 / 3;
+  c.width = Math.round(cssW);
+  c.height = Math.round(cssH);
+}
+
+function dataUrlFromFile(file){
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result);
+    fr.onerror = reject;
+    fr.readAsDataURL(file);
+  });
+}
+
+$("frontInput").addEventListener("change", async e => {
+  const f = e.target.files[0];
+  if(!f) return;
+  const url = await dataUrlFromFile(f);
+  frontURL = url;
+  $("frontPreview").src = url;
+});
+
+$("rakingInput").addEventListener("change", async e => {
+  const f = e.target.files[0];
+  if(!f) return;
+  rakingURL = await dataUrlFromFile(f);
+});
+
+function clearMetrics(){
+  ["mCandidates","mAreaRatio","mTexture","mAvgSize"].forEach(id => $(id).textContent = "—");
+}
+
+function fillMetrics(m){
+  if(!m){ clearMetrics(); return; }
+  $("mCandidates").textContent = m.candidates;
+  $("mAreaRatio").textContent = m.areaRatio.toFixed(2) + "%";
+  $("mTexture").textContent = m.texture.toFixed(2);
+  $("mAvgSize").textContent = m.avgSize.toFixed(1) + " px²";
+}
+
+function regionMask(w, h, regionKey){
+  const pts = [];
+  if(regionKey === "forehead"){
+    pts.push([0.18,0.20],[0.82,0.20],[0.76,0.58],[0.24,0.58]);
+  } else if(regionKey === "rightCheek" || regionKey === "leftCheek"){
+    pts.push([0.16,0.18],[0.84,0.18],[0.90,0.72],[0.64,0.92],[0.20,0.78]);
+  } else {
+    pts.push([0.28,0.12],[0.72,0.12],[0.82,0.80],[0.50,0.94],[0.18,0.80]);
+  }
+  return pts.map(([x,y]) => [x*w,y*h]);
+}
+
+function pointInPolygon(x, y, poly){
+  let inside = false;
+  for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+    const xi=poly[i][0], yi=poly[i][1], xj=poly[j][0], yj=poly[j][1];
+    const intersect = ((yi>y)!=(yj>y)) && (x < (xj-xi)*(y-yi)/(yj-yi+1e-9) + xi);
+    if(intersect) inside = !inside;
+  }
+  return inside;
+}
+
+async function analyzeCurrentRegion(){
+  const region = currentRegion();
+  const src = rakingURL || frontURL;
+  if(!src){
+    alert("まずこの部位の画像を1枚以上入れてください。");
+    return;
+  }
+
+  const img = new Image();
+  img.src = src;
+  await img.decode();
+
+  resizeCanvas(analysisCanvas);
+  const w = analysisCanvas.width;
+  const h = analysisCanvas.height;
+  actx.clearRect(0,0,w,h);
+  actx.fillStyle = "#111";
+  actx.fillRect(0,0,w,h);
+
+  const s = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+  const dw = img.naturalWidth * s, dh = img.naturalHeight * s;
+  const ox = (w - dw) / 2, oy = (h - dh) / 2;
+  actx.drawImage(img, ox, oy, dw, dh);
+
+  const srcData = actx.getImageData(0,0,w,h);
+  const data = srcData.data;
+
+  const gray = new Float32Array(w*h);
+  for(let i=0, p=0; i<data.length; i+=4, p++){
+    gray[p] = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
+  }
+
+  const blur = boxBlur(gray, w, h, 11);
+  const maskPoly = regionMask(w, h, region.key);
+
+  const candidateMap = new Uint8Array(w*h);
+  let texSum = 0, texN = 0;
+  for(let y=1;y<h-1;y++){
+    for(let x=1;x<w-1;x++){
+      const idx = y*w + x;
+      if(!pointInPolygon(x,y,maskPoly)) continue;
+
+      const local = blur[idx] - gray[idx];
+      const gx = gray[idx+1] - gray[idx-1];
+      const gy = gray[idx+w] - gray[idx-w];
+      const grad = Math.sqrt(gx*gx + gy*gy);
+      texSum += Math.abs(local);
+      texN++;
+
+      let threshLocal = 12;
+      let threshGrad = 10;
+
+      if(region.key === "nose"){ threshLocal = 10; threshGrad = 12; }
+      if(region.key === "forehead"){ threshLocal = 13; threshGrad = 9; }
+
+      if(local > threshLocal && grad > threshGrad){
+        candidateMap[idx] = 1;
+      }
+    }
+  }
+
+  const visited = new Uint8Array(w*h);
+  const comps = [];
+  const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+  for(let y=1;y<h-1;y++){
+    for(let x=1;x<w-1;x++){
+      const start = y*w+x;
+      if(!candidateMap[start] || visited[start]) continue;
+      const q = [start];
+      visited[start] = 1;
+      let pixels = [];
+      let minX=x,maxX=x,minY=y,maxY=y;
+      while(q.length){
+        const cur = q.pop();
+        const cx = cur % w, cy = (cur / w) | 0;
+        pixels.push(cur);
+        if(cx<minX) minX=cx; if(cx>maxX) maxX=cx;
+        if(cy<minY) minY=cy; if(cy>maxY) maxY=cy;
+        for(const [dx,dy] of dirs){
+          const nx = cx+dx, ny = cy+dy;
+          if(nx<1||ny<1||nx>=w-1||ny>=h-1) continue;
+          const ni = ny*w + nx;
+          if(candidateMap[ni] && !visited[ni]){
+            visited[ni]=1;
+            q.push(ni);
+          }
+        }
+      }
+      const area = pixels.length;
+      const bw = maxX-minX+1;
+      const bh = maxY-minY+1;
+      if(area < 8 || area > 1500) continue;
+      const aspect = Math.max(bw,bh) / Math.max(1, Math.min(bw,bh));
+      comps.push({minX,minY,maxX,maxY,area,bw,bh,aspect});
+    }
+  }
+
+  actx.clearRect(0,0,w,h);
+  actx.fillStyle = "#111";
+  actx.fillRect(0,0,w,h);
+  actx.drawImage(img, ox, oy, dw, dh);
+
+  actx.save();
+  actx.strokeStyle = "rgba(245,158,11,0.9)";
+  actx.lineWidth = 2;
+  actx.beginPath();
+  maskPoly.forEach((pt, i) => i ? actx.lineTo(pt[0], pt[1]) : actx.moveTo(pt[0], pt[1]));
+  actx.closePath();
+  actx.stroke();
+  actx.restore();
+
+  let totalArea = 0;
+  comps.forEach((c, i) => {
+    totalArea += c.area;
+    const t = classifyShape(c);
+    actx.strokeStyle = t.color;
+    actx.lineWidth = 1.5;
+    actx.strokeRect(c.minX, c.minY, c.bw, c.bh);
+    actx.fillStyle = t.color;
+    actx.font = "11px system-ui";
+    actx.fillText(String(i+1), c.minX+1, Math.max(10, c.minY-2));
+  });
+
+  const polyArea = polygonArea(maskPoly);
+  const metrics = {
+    candidates: comps.length,
+    areaRatio: polyArea ? (100 * totalArea / polyArea) : 0,
+    texture: texN ? (texSum / texN) : 0,
+    avgSize: comps.length ? totalArea / comps.length : 0,
+    components: comps.map(classifyShape)
+  };
+  lastMetrics = metrics;
+  fillMetrics(metrics);
+}
+
+function classifyShape(c){
+  let label = "R";
+  let color = "rgba(59,130,246,0.95)";
+  if(c.area < 40 && c.aspect < 1.7){
+    label = "I";
+    color = "rgba(239,68,68,0.95)";
+  } else if(c.aspect < 1.45 && c.area >= 40){
+    label = "B";
+    color = "rgba(34,197,94,0.95)";
+  }
+  return {...c, label, color};
+}
+
+function polygonArea(poly){
+  let a = 0;
+  for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+    a += poly[j][0]*poly[i][1] - poly[i][0]*poly[j][1];
+  }
+  return Math.abs(a)/2;
+}
+
+function boxBlur(gray, w, h, radius){
+  const tmp = new Float32Array(w*h);
+  const out = new Float32Array(w*h);
+  const size = radius*2 + 1;
+
+  for(let y=0;y<h;y++){
+    let sum = 0;
+    for(let x=-radius;x<=radius;x++){
+      const xx = Math.min(w-1, Math.max(0,x));
+      sum += gray[y*w + xx];
+    }
+    for(let x=0;x<w;x++){
+      tmp[y*w + x] = sum / size;
+      const rm = x - radius;
+      const ad = x + radius + 1;
+      if(rm >= 0) sum -= gray[y*w + rm];
+      if(ad < w) sum += gray[y*w + ad];
+      else sum += gray[y*w + (w-1)];
+    }
+  }
+
+  for(let x=0;x<w;x++){
+    let sum = 0;
+    for(let y=-radius;y<=radius;y++){
+      const yy = Math.min(h-1, Math.max(0,y));
+      sum += tmp[yy*w + x];
+    }
+    for(let y=0;y<h;y++){
+      out[y*w + x] = sum / size;
+      const rm = y - radius;
+      const ad = y + radius + 1;
+      if(rm >= 0) sum -= tmp[rm*w + x];
+      if(ad < h) sum += tmp[ad*w + x];
+      else sum += tmp[(h-1)*w + x];
+    }
+  }
+  return out;
+}
+
+function renderSavedOverlay(saved){
+  resizeCanvas(analysisCanvas);
+  if(!saved.overlayDataUrl){
+    actx.fillStyle = "#111";
+    actx.fillRect(0,0,analysisCanvas.width,analysisCanvas.height);
+    return;
+  }
+  const img = new Image();
+  img.onload = () => {
+    actx.clearRect(0,0,analysisCanvas.width,analysisCanvas.height);
+    actx.drawImage(img,0,0,analysisCanvas.width,analysisCanvas.height);
+  };
+  img.src = saved.overlayDataUrl;
+}
+
+$("analyzeBtn").addEventListener("click", analyzeCurrentRegion);
+
+$("saveRegionBtn").addEventListener("click", () => {
+  const r = currentRegion();
+  if(!frontURL && !rakingURL){
+    alert("画像を入れてください。");
+    return;
+  }
+  state.sessionName = $("sessionName").value;
+  state.lightingPreset = $("lightingPreset").value;
+  state.regions[r.key] = {
+    name: r.name,
+    frontDataUrl: frontURL || null,
+    rakingDataUrl: rakingURL || null,
+    overlayDataUrl: analysisCanvas.toDataURL("image/png"),
+    metrics: lastMetrics
+  };
+  buildWizard();
+  renderSummary();
+  alert(`${r.name} を保存しました。`);
+});
+
+function renderSummary(){
+  summaryTabs.innerHTML = "";
+  const savedRegions = Object.keys(state.regions);
+  if(!savedRegions.length){
+    $("summaryPane").textContent = "まだ部位は保存されていません。";
+    return;
+  }
+
+  savedRegions.forEach((key, idx) => {
+    const btn = document.createElement("button");
+    btn.textContent = state.regions[key].name;
+    if(idx === 0) btn.classList.add("active");
+    btn.onclick = () => {
+      [...summaryTabs.children].forEach(x => x.classList.remove("active"));
+      btn.classList.add("active");
+      showSummary(key);
+    };
+    summaryTabs.appendChild(btn);
+  });
+  showSummary(savedRegions[0]);
+}
+
+function showSummary(key){
+  const s = state.regions[key];
+  const m = s.metrics;
+  let labels = "";
+  if(m?.components?.length){
+    const counts = {I:0,B:0,R:0};
+    m.components.forEach(c => counts[c.label] = (counts[c.label]||0)+1);
+    labels = `<li>I型候補: ${counts.I}</li><li>B型候補: ${counts.B}</li><li>R型候補: ${counts.R}</li>`;
+  }
+
+  $("summaryPane").innerHTML = `
+    <div class="small">
+      <b>${s.name}</b><br>
+      セッション名: ${escapeHtml(state.sessionName || "未入力")}<br>
+      照明プリセット: ${escapeHtml(state.lightingPreset)}<br><br>
+      <ul class="list">
+        <li>候補数: ${m ? m.candidates : "—"}</li>
+        <li>候補面積率: ${m ? m.areaRatio.toFixed(2) + "%" : "—"}</li>
+        <li>texture roughness: ${m ? m.texture.toFixed(2) : "—"}</li>
+        <li>平均候補サイズ: ${m ? m.avgSize.toFixed(1) + " px²" : "—"}</li>
+        ${labels}
+      </ul>
+    </div>
+  `;
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, m => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[m]));
+}
+
+$("prevStep").addEventListener("click", () => {
+  state.current = (state.current - 1 + regions.length) % regions.length;
+  frontURL = null; rakingURL = null; lastMetrics = null;
+  updateRegionUI();
+});
+$("nextStep").addEventListener("click", () => {
+  state.current = (state.current + 1) % regions.length;
+  frontURL = null; rakingURL = null; lastMetrics = null;
+  updateRegionUI();
+});
+
+$("exportBtn").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "acne_scar_session_v0_5.json";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+
+$("resetBtn").addEventListener("click", () => {
+  if(!confirm("セッション全体をリセットしますか？")) return;
+  state.current = 0;
+  state.sessionName = "";
+  state.lightingPreset = "front";
+  state.regions = {};
+  $("sessionName").value = "";
+  $("lightingPreset").value = "front";
+  frontURL = null; rakingURL = null; lastMetrics = null;
+  updateRegionUI();
+});
+
+window.addEventListener("resize", () => {
+  const r = currentRegion();
+  const saved = state.regions[r.key];
+  if(saved) renderSavedOverlay(saved);
+});
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("./sw.js").catch(console.warn);
+}
+
+buildWizard();
+updateRegionUI();
