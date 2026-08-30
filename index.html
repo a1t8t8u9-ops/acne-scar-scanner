@@ -4,13 +4,17 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
   <meta name="theme-color" content="#0f172a" />
-  <title>Acne Scar Scanner v0.5.1</title>
+  <title>Acne Scar Scanner v0.5.2</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="stylesheet" href="./styles.css">
+  <style>
+    .preview3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+    @media(max-width:760px){.preview3{grid-template-columns:1fr}}
+  </style>
 </head>
 <body>
 <header>
-  <h1>Acne Scar Scanner <span class="badge">v0.5.1</span></h1>
+  <h1>Acne Scar Scanner <span class="badge">v0.5.2</span></h1>
   <p>部位別セッション型プロトタイプ</p>
 </header>
 
@@ -79,15 +83,23 @@
       </div>
     </div>
 
-    <div class="previewWrap" style="margin-top:12px">
+    <div class="preview3" style="margin-top:12px">
       <figure>
         <img id="frontPreview" alt="">
         <figcaption>正面光</figcaption>
       </figure>
       <figure>
-        <canvas id="analysisCanvas"></canvas>
-        <figcaption>解析結果（斜光画像ベース）</figcaption>
+        <img id="rakingPreview" alt="">
+        <figcaption>斜光</figcaption>
       </figure>
+      <figure>
+        <canvas id="analysisCanvas"></canvas>
+        <figcaption>解析結果</figcaption>
+      </figure>
+    </div>
+
+    <div id="analysisSource" class="note" style="margin-top:10px">
+      解析ルール: 斜光があれば斜光を優先。斜光がなければ正面光だけでも解析できます。
     </div>
 
     <div class="row" style="margin-top:10px">
@@ -104,7 +116,7 @@
 
     <div class="warnBox" style="margin-top:10px">
       この版は「本物のscar AI」ではありません。<br>
-      斜光画像の中の局所陰影・エッジ・小さな暗部を使って、<b>凹み候補</b>を可視化しています。髪の影・輪郭・強い反射で誤検出することがあります。
+      現在は局所陰影・エッジ・小さな暗部を使って、<b>凹み候補</b>を可視化しています。髪の影・輪郭・強い反射で誤検出することがあります。
     </div>
   </section>
 
@@ -132,9 +144,14 @@
     const f = e.target.files && e.target.files[0];
     byId("frontSourceStatus").textContent = f ? `ファイル: ${f.name}` : "未選択";
   });
-  byId("rakingInput").addEventListener("change", e => {
+
+  byId("rakingInput").addEventListener("change", async e => {
     const f = e.target.files && e.target.files[0];
     byId("rakingSourceStatus").textContent = f ? `ファイル: ${f.name}` : "未選択";
+    if(!f) return;
+    const url = await dataUrlFromFile(f);
+    rakingURL = url;
+    byId("rakingPreview").src = url;
   });
 
   byId("frontCameraInput").addEventListener("change", async e => {
@@ -149,8 +166,20 @@
   byId("rakingCameraInput").addEventListener("change", async e => {
     const f = e.target.files && e.target.files[0];
     if(!f) return;
-    rakingURL = await dataUrlFromFile(f);
+    const url = await dataUrlFromFile(f);
+    rakingURL = url;
+    byId("rakingPreview").src = url;
     byId("rakingSourceStatus").textContent = "カメラで撮影済み";
+  });
+
+  byId("analyzeBtn").addEventListener("click", () => {
+    if(rakingURL){
+      byId("analysisSource").innerHTML = "<b>解析に使用:</b> 斜光画像（凹凸解析として優先）";
+    } else if(frontURL){
+      byId("analysisSource").innerHTML = "<b>解析に使用:</b> 正面光画像（斜光が未登録のためフォールバック）";
+    } else {
+      byId("analysisSource").textContent = "解析する画像がまだありません。";
+    }
   });
 })();
 </script>
