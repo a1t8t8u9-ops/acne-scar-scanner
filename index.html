@@ -4,184 +4,78 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
   <meta name="theme-color" content="#0f172a" />
-  <title>Acne Scar Scanner v0.5.2</title>
+  <title>Acne Scar Scanner v0.6</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="stylesheet" href="./styles.css">
-  <style>
-    .preview3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-    @media(max-width:760px){.preview3{grid-template-columns:1fr}}
-  </style>
 </head>
 <body>
 <header>
-  <h1>Acne Scar Scanner <span class="badge">v0.5.2</span></h1>
-  <p>部位別セッション型プロトタイプ</p>
+  <h1>Acne Scar Scanner <span class="badge">v0.6</span></h1>
+  <p>部位ROIを確定してから解析</p>
 </header>
-
 <main>
   <section class="card">
     <h2>1. セッション設定</h2>
-    <div class="small">顔全体1枚ではなく、<b>額 → 右頬 → 左頬 → 鼻</b> を順番に登録します。各部位ごとに「正面光」と「斜光」を分けて保存できます。</div>
+    <div class="small">額 → 右頬 → 左頬 → 鼻の順に登録します。画像を入れたあと、解析する皮膚範囲を必ずROIで確定します。</div>
     <div class="grid2" style="margin-top:10px">
-      <div>
-        <label class="tiny">照明プリセット</label>
-        <select id="lightingPreset">
-          <option value="front">正面の均一光</option>
-          <option value="left-raking">左からの斜光</option>
-          <option value="right-raking">右からの斜光</option>
-          <option value="top-raking">上からの斜光</option>
-          <option value="custom">カスタム</option>
-        </select>
-      </div>
-      <div>
-        <label class="tiny">セッション名 / メモ</label>
-        <input id="sessionName" type="text" placeholder="例: 2026-08-30 夜 / 机のLED右45°" />
-      </div>
-    </div>
-    <div class="note" style="margin-top:10px">
-      推奨: 同じ部屋・同じ距離・同じ向き・同じ光。<br>
-      特にニキビ跡の凹みを見るなら、<b>左右どちらか一方向からの斜光</b>を毎回統一するのがよいです。
+      <div><label class="tiny">照明プリセット</label><select id="lightingPreset"><option value="left-raking">左からの斜光</option><option value="right-raking">右からの斜光</option><option value="top-raking">上からの斜光</option><option value="front">正面の均一光</option><option value="custom">カスタム</option></select></div>
+      <div><label class="tiny">セッション名 / メモ</label><input id="sessionName" type="text" placeholder="例: 2026-08-30 / 左45°LED" /></div>
     </div>
   </section>
 
   <section class="card">
-    <h2>2. 撮影順</h2>
+    <h2>2. 部位</h2>
     <div class="wizard" id="wizard"></div>
-    <div class="row" style="margin-top:10px">
-      <button id="prevStep">前へ</button>
-      <button id="nextStep" class="primary">次へ</button>
-    </div>
+    <div class="row" style="margin-top:10px"><button id="prevStep">前へ</button><button id="nextStep" class="primary">次へ</button></div>
   </section>
 
   <section class="card">
-    <div class="regionTitle">
-      <h2 id="regionHeading">3. 部位登録</h2>
-      <span id="progressText" class="tiny"></span>
-    </div>
+    <div class="regionTitle"><h2 id="regionHeading">3. 部位画像</h2><span id="progressText" class="tiny"></span></div>
     <div id="regionInstruction" class="note"></div>
-
     <div class="grid2" style="margin-top:10px">
       <div>
-        <label class="tiny">この部位の正面光画像</label>
-        <div class="row" style="margin-top:6px">
-          <button type="button" id="frontFileBtn">ファイルから選択</button>
-          <button type="button" id="frontCameraBtn" class="primary">カメラ起動</button>
-        </div>
-        <input id="frontInput" type="file" accept="image/*" hidden />
-        <input id="frontCameraInput" type="file" accept="image/*" capture="environment" hidden />
+        <label class="tiny">正面光画像</label>
+        <div class="row" style="margin-top:6px"><button type="button" id="frontFileBtn">ファイルから選択</button><button type="button" id="frontCameraBtn" class="primary">カメラ起動</button></div>
+        <input id="frontInput" type="file" accept="image/*" hidden><input id="frontCameraInput" type="file" accept="image/*" capture="environment" hidden>
         <div id="frontSourceStatus" class="tiny" style="margin-top:6px">未選択</div>
       </div>
       <div>
-        <label class="tiny">この部位の斜光画像</label>
-        <div class="row" style="margin-top:6px">
-          <button type="button" id="rakingFileBtn">ファイルから選択</button>
-          <button type="button" id="rakingCameraBtn" class="primary">カメラ起動</button>
-        </div>
-        <input id="rakingInput" type="file" accept="image/*" hidden />
-        <input id="rakingCameraInput" type="file" accept="image/*" capture="environment" hidden />
+        <label class="tiny">斜光画像</label>
+        <div class="row" style="margin-top:6px"><button type="button" id="rakingFileBtn">ファイルから選択</button><button type="button" id="rakingCameraBtn" class="primary">カメラ起動</button></div>
+        <input id="rakingInput" type="file" accept="image/*" hidden><input id="rakingCameraInput" type="file" accept="image/*" capture="environment" hidden>
         <div id="rakingSourceStatus" class="tiny" style="margin-top:6px">未選択</div>
       </div>
-    </div>
-
-    <div class="preview3" style="margin-top:12px">
-      <figure>
-        <img id="frontPreview" alt="">
-        <figcaption>正面光</figcaption>
-      </figure>
-      <figure>
-        <img id="rakingPreview" alt="">
-        <figcaption>斜光</figcaption>
-      </figure>
-      <figure>
-        <canvas id="analysisCanvas"></canvas>
-        <figcaption>解析結果</figcaption>
-      </figure>
-    </div>
-
-    <div id="analysisSource" class="note" style="margin-top:10px">
-      解析ルール: 斜光があれば斜光を優先。斜光がなければ正面光だけでも解析できます。
-    </div>
-
-    <div class="row" style="margin-top:10px">
-      <button id="analyzeBtn" class="success">この部位を解析</button>
-      <button id="saveRegionBtn" class="primary">この部位を保存</button>
-    </div>
-
-    <div class="metrics" style="margin-top:10px">
-      <div class="metric"><span>候補数</span><strong id="mCandidates">—</strong></div>
-      <div class="metric"><span>候補面積率</span><strong id="mAreaRatio">—</strong></div>
-      <div class="metric"><span>texture roughness</span><strong id="mTexture">—</strong></div>
-      <div class="metric"><span>平均候補サイズ</span><strong id="mAvgSize">—</strong></div>
-    </div>
-
-    <div class="warnBox" style="margin-top:10px">
-      この版は「本物のscar AI」ではありません。<br>
-      現在は局所陰影・エッジ・小さな暗部を使って、<b>凹み候補</b>を可視化しています。髪の影・輪郭・強い反射で誤検出することがあります。
     </div>
   </section>
 
   <section class="card">
-    <h2>4. セッションまとめ</h2>
-    <div class="tabs" id="summaryTabs"></div>
-    <div id="summaryPane" class="small" style="margin-top:10px">まだ部位は保存されていません。</div>
-    <div class="row" style="margin-top:10px">
-      <button id="exportBtn" class="primary">JSONを書き出す</button>
-      <button id="resetBtn" class="warn">セッションをリセット</button>
+    <h2>4. 解析範囲を決める</h2>
+    <p class="small">黄色い4本の境界線を指で動かしてください。正面光がある場合は正面光を基準に表示し、確定した相対ROIを解析画像にも使います。</p>
+    <div id="roiEditorEmpty" class="emptyBox">画像を選ぶとここでROIを調整できます。</div>
+    <canvas id="roiCanvas" class="roiCanvas" hidden></canvas>
+    <div id="roiStatus" class="note" style="margin-top:10px"></div>
+    <div class="row" style="margin-top:10px"><button id="resetRoiBtn">部位テンプレートに戻す</button><button id="confirmRoiBtn" class="success">この範囲で確定</button></div>
+  </section>
+
+  <section class="card">
+    <h2>5. 確認・解析</h2>
+    <div class="preview3">
+      <figure><img id="frontPreview" alt=""><figcaption>正面光</figcaption></figure>
+      <figure><img id="rakingPreview" alt=""><figcaption>斜光</figcaption></figure>
+      <figure><canvas id="analysisCanvas"></canvas><figcaption>確定ROIだけの解析結果</figcaption></figure>
     </div>
+    <div id="analysisSource" class="note" style="margin-top:10px">斜光があれば斜光を優先し、なければ正面光を解析します。</div>
+    <div class="row" style="margin-top:10px"><button id="analyzeBtn" class="success">このROIを解析</button><button id="saveRegionBtn" class="primary">この部位を保存</button></div>
+    <div class="metrics" style="margin-top:10px"><div class="metric"><span>候補数</span><strong id="mCandidates">—</strong></div><div class="metric"><span>候補面積率</span><strong id="mAreaRatio">—</strong></div><div class="metric"><span>texture roughness</span><strong id="mTexture">—</strong></div><div class="metric"><span>平均候補サイズ</span><strong id="mAvgSize">—</strong></div></div>
+    <div class="warnBox" style="margin-top:10px">v0.6の主目的は検出精度ではなく、<b>解析前に部位範囲を人間が確定できること</b>です。現在のscar候補検出はまだ試作です。</div>
+  </section>
+
+  <section class="card">
+    <h2>6. セッションまとめ</h2>
+    <div class="tabs" id="summaryTabs"></div><div id="summaryPane" class="small" style="margin-top:10px">まだ部位は保存されていません。</div>
+    <div class="row" style="margin-top:10px"><button id="exportBtn" class="primary">JSONを書き出す</button><button id="resetBtn" class="warn">セッションをリセット</button></div>
   </section>
 </main>
 <script src="./app.js"></script>
-<script>
-(function(){
-  const byId = id => document.getElementById(id);
-
-  byId("frontFileBtn").addEventListener("click", () => byId("frontInput").click());
-  byId("rakingFileBtn").addEventListener("click", () => byId("rakingInput").click());
-  byId("frontCameraBtn").addEventListener("click", () => byId("frontCameraInput").click());
-  byId("rakingCameraBtn").addEventListener("click", () => byId("rakingCameraInput").click());
-
-  byId("frontInput").addEventListener("change", e => {
-    const f = e.target.files && e.target.files[0];
-    byId("frontSourceStatus").textContent = f ? `ファイル: ${f.name}` : "未選択";
-  });
-
-  byId("rakingInput").addEventListener("change", async e => {
-    const f = e.target.files && e.target.files[0];
-    byId("rakingSourceStatus").textContent = f ? `ファイル: ${f.name}` : "未選択";
-    if(!f) return;
-    const url = await dataUrlFromFile(f);
-    rakingURL = url;
-    byId("rakingPreview").src = url;
-  });
-
-  byId("frontCameraInput").addEventListener("change", async e => {
-    const f = e.target.files && e.target.files[0];
-    if(!f) return;
-    const url = await dataUrlFromFile(f);
-    frontURL = url;
-    byId("frontPreview").src = url;
-    byId("frontSourceStatus").textContent = "カメラで撮影済み";
-  });
-
-  byId("rakingCameraInput").addEventListener("change", async e => {
-    const f = e.target.files && e.target.files[0];
-    if(!f) return;
-    const url = await dataUrlFromFile(f);
-    rakingURL = url;
-    byId("rakingPreview").src = url;
-    byId("rakingSourceStatus").textContent = "カメラで撮影済み";
-  });
-
-  byId("analyzeBtn").addEventListener("click", () => {
-    if(rakingURL){
-      byId("analysisSource").innerHTML = "<b>解析に使用:</b> 斜光画像（凹凸解析として優先）";
-    } else if(frontURL){
-      byId("analysisSource").innerHTML = "<b>解析に使用:</b> 正面光画像（斜光が未登録のためフォールバック）";
-    } else {
-      byId("analysisSource").textContent = "解析する画像がまだありません。";
-    }
-  });
-})();
-</script>
 </body>
 </html>
