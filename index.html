@@ -4,13 +4,13 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
   <meta name="theme-color" content="#0f172a" />
-  <title>Acne Scar Scanner v0.5</title>
+  <title>Acne Scar Scanner v0.5.1</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
 <header>
-  <h1>Acne Scar Scanner <span class="badge">v0.5</span></h1>
+  <h1>Acne Scar Scanner <span class="badge">v0.5.1</span></h1>
   <p>部位別セッション型プロトタイプ</p>
 </header>
 
@@ -59,11 +59,23 @@
     <div class="grid2" style="margin-top:10px">
       <div>
         <label class="tiny">この部位の正面光画像</label>
-        <input id="frontInput" type="file" accept="image/*" capture="environment" />
+        <div class="row" style="margin-top:6px">
+          <button type="button" id="frontFileBtn">ファイルから選択</button>
+          <button type="button" id="frontCameraBtn" class="primary">カメラ起動</button>
+        </div>
+        <input id="frontInput" type="file" accept="image/*" hidden />
+        <input id="frontCameraInput" type="file" accept="image/*" capture="environment" hidden />
+        <div id="frontSourceStatus" class="tiny" style="margin-top:6px">未選択</div>
       </div>
       <div>
         <label class="tiny">この部位の斜光画像</label>
-        <input id="rakingInput" type="file" accept="image/*" capture="environment" />
+        <div class="row" style="margin-top:6px">
+          <button type="button" id="rakingFileBtn">ファイルから選択</button>
+          <button type="button" id="rakingCameraBtn" class="primary">カメラ起動</button>
+        </div>
+        <input id="rakingInput" type="file" accept="image/*" hidden />
+        <input id="rakingCameraInput" type="file" accept="image/*" capture="environment" hidden />
+        <div id="rakingSourceStatus" class="tiny" style="margin-top:6px">未選択</div>
       </div>
     </div>
 
@@ -107,5 +119,40 @@
   </section>
 </main>
 <script src="./app.js"></script>
+<script>
+(function(){
+  const byId = id => document.getElementById(id);
+
+  byId("frontFileBtn").addEventListener("click", () => byId("frontInput").click());
+  byId("rakingFileBtn").addEventListener("click", () => byId("rakingInput").click());
+  byId("frontCameraBtn").addEventListener("click", () => byId("frontCameraInput").click());
+  byId("rakingCameraBtn").addEventListener("click", () => byId("rakingCameraInput").click());
+
+  byId("frontInput").addEventListener("change", e => {
+    const f = e.target.files && e.target.files[0];
+    byId("frontSourceStatus").textContent = f ? `ファイル: ${f.name}` : "未選択";
+  });
+  byId("rakingInput").addEventListener("change", e => {
+    const f = e.target.files && e.target.files[0];
+    byId("rakingSourceStatus").textContent = f ? `ファイル: ${f.name}` : "未選択";
+  });
+
+  byId("frontCameraInput").addEventListener("change", async e => {
+    const f = e.target.files && e.target.files[0];
+    if(!f) return;
+    const url = await dataUrlFromFile(f);
+    frontURL = url;
+    byId("frontPreview").src = url;
+    byId("frontSourceStatus").textContent = "カメラで撮影済み";
+  });
+
+  byId("rakingCameraInput").addEventListener("change", async e => {
+    const f = e.target.files && e.target.files[0];
+    if(!f) return;
+    rakingURL = await dataUrlFromFile(f);
+    byId("rakingSourceStatus").textContent = "カメラで撮影済み";
+  });
+})();
+</script>
 </body>
 </html>
