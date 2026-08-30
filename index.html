@@ -4,23 +4,24 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
   <meta name="theme-color" content="#0f172a" />
-  <title>Acne Scar Scanner v0.6</title>
+  <title>Acne Scar Scanner v0.6.1</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
 <header>
-  <h1>Acne Scar Scanner <span class="badge">v0.6</span></h1>
-  <p>部位ROIを確定してから解析</p>
+  <h1>Acne Scar Scanner <span class="badge">v0.6.1</span></h1>
+  <p>上方光を標準にした部位ROI解析</p>
 </header>
 <main>
   <section class="card">
     <h2>1. セッション設定</h2>
-    <div class="small">額 → 右頬 → 左頬 → 鼻の順に登録します。画像を入れたあと、解析する皮膚範囲を必ずROIで確定します。</div>
+    <div class="small">額 → 右頬 → 左頬 → 鼻の順に登録します。<b>毎回の基準画像は上方光</b>です。斜光は凹凸を強調する追加画像として任意で登録します。</div>
     <div class="grid2" style="margin-top:10px">
-      <div><label class="tiny">照明プリセット</label><select id="lightingPreset"><option value="left-raking">左からの斜光</option><option value="right-raking">右からの斜光</option><option value="top-raking">上からの斜光</option><option value="front">正面の均一光</option><option value="custom">カスタム</option></select></div>
-      <div><label class="tiny">セッション名 / メモ</label><input id="sessionName" type="text" placeholder="例: 2026-08-30 / 左45°LED" /></div>
+      <div><label class="tiny">追加する斜光の方向</label><select id="lightingPreset"><option value="none">なし（上方光のみ）</option><option value="left-raking">左からの斜光</option><option value="right-raking">右からの斜光</option><option value="custom">カスタム</option></select></div>
+      <div><label class="tiny">セッション名 / メモ</label><input id="sessionName" type="text" placeholder="例: 2026-08-30 / 上方LED + 左斜光" /></div>
     </div>
+    <div class="note" style="margin-top:10px"><b>標準:</b> 顔の上方から同じ方向・距離・強さで照らした画像を毎回1枚。必要なら同じ構図のまま斜光画像を追加します。</div>
   </section>
 
   <section class="card">
@@ -34,13 +35,13 @@
     <div id="regionInstruction" class="note"></div>
     <div class="grid2" style="margin-top:10px">
       <div>
-        <label class="tiny">正面光画像</label>
+        <label class="tiny"><b>上方光画像（標準）</b></label>
         <div class="row" style="margin-top:6px"><button type="button" id="frontFileBtn">ファイルから選択</button><button type="button" id="frontCameraBtn" class="primary">カメラ起動</button></div>
         <input id="frontInput" type="file" accept="image/*" hidden><input id="frontCameraInput" type="file" accept="image/*" capture="environment" hidden>
         <div id="frontSourceStatus" class="tiny" style="margin-top:6px">未選択</div>
       </div>
       <div>
-        <label class="tiny">斜光画像</label>
+        <label class="tiny">斜光画像（任意）</label>
         <div class="row" style="margin-top:6px"><button type="button" id="rakingFileBtn">ファイルから選択</button><button type="button" id="rakingCameraBtn" class="primary">カメラ起動</button></div>
         <input id="rakingInput" type="file" accept="image/*" hidden><input id="rakingCameraInput" type="file" accept="image/*" capture="environment" hidden>
         <div id="rakingSourceStatus" class="tiny" style="margin-top:6px">未選択</div>
@@ -50,7 +51,7 @@
 
   <section class="card">
     <h2>4. 解析範囲を決める</h2>
-    <p class="small">黄色い4本の境界線を指で動かしてください。正面光がある場合は正面光を基準に表示し、確定した相対ROIを解析画像にも使います。</p>
+    <p class="small">黄色い4本の境界線を指で動かしてください。<b>上方光画像をROI決定の基準</b>にし、確定した相対ROIを斜光画像にも適用します。</p>
     <div id="roiEditorEmpty" class="emptyBox">画像を選ぶとここでROIを調整できます。</div>
     <canvas id="roiCanvas" class="roiCanvas" hidden></canvas>
     <div id="roiStatus" class="note" style="margin-top:10px"></div>
@@ -60,14 +61,14 @@
   <section class="card">
     <h2>5. 確認・解析</h2>
     <div class="preview3">
-      <figure><img id="frontPreview" alt=""><figcaption>正面光</figcaption></figure>
-      <figure><img id="rakingPreview" alt=""><figcaption>斜光</figcaption></figure>
+      <figure><img id="frontPreview" alt=""><figcaption>上方光（標準）</figcaption></figure>
+      <figure><img id="rakingPreview" alt=""><figcaption>斜光（任意）</figcaption></figure>
       <figure><canvas id="analysisCanvas"></canvas><figcaption>確定ROIだけの解析結果</figcaption></figure>
     </div>
-    <div id="analysisSource" class="note" style="margin-top:10px">斜光があれば斜光を優先し、なければ正面光を解析します。</div>
+    <div id="analysisSource" class="note" style="margin-top:10px"><b>基本:</b> 上方光を基準画像として使用。斜光があれば、現在の凹凸候補検出では斜光を優先します。</div>
     <div class="row" style="margin-top:10px"><button id="analyzeBtn" class="success">このROIを解析</button><button id="saveRegionBtn" class="primary">この部位を保存</button></div>
     <div class="metrics" style="margin-top:10px"><div class="metric"><span>候補数</span><strong id="mCandidates">—</strong></div><div class="metric"><span>候補面積率</span><strong id="mAreaRatio">—</strong></div><div class="metric"><span>texture roughness</span><strong id="mTexture">—</strong></div><div class="metric"><span>平均候補サイズ</span><strong id="mAvgSize">—</strong></div></div>
-    <div class="warnBox" style="margin-top:10px">v0.6の主目的は検出精度ではなく、<b>解析前に部位範囲を人間が確定できること</b>です。現在のscar候補検出はまだ試作です。</div>
+    <div class="warnBox" style="margin-top:10px">v0.6.1では<b>上方光を標準撮影条件</b>として扱います。斜光は追加情報です。scar候補検出自体はまだ試作です。</div>
   </section>
 
   <section class="card">
