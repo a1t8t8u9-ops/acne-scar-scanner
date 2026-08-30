@@ -4,46 +4,80 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
   <meta name="theme-color" content="#0f172a" />
-  <title>Acne Scar Scanner v0.6.1</title>
+  <title>Acne Scar Scanner v0.7</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
 <header>
-  <h1>Acne Scar Scanner <span class="badge">v0.6.1</span></h1>
-  <p>上方光を標準にした部位ROI解析</p>
+  <h1>Acne Scar Scanner <span class="badge">v0.7</span></h1>
+  <p>ROI解析 + scar候補の手動修正</p>
 </header>
+
 <main>
   <section class="card">
     <h2>1. セッション設定</h2>
-    <div class="small">額 → 右頬 → 左頬 → 鼻の順に登録します。<b>毎回の基準画像は上方光</b>です。斜光は凹凸を強調する追加画像として任意で登録します。</div>
-    <div class="grid2" style="margin-top:10px">
-      <div><label class="tiny">追加する斜光の方向</label><select id="lightingPreset"><option value="none">なし（上方光のみ）</option><option value="left-raking">左からの斜光</option><option value="right-raking">右からの斜光</option><option value="custom">カスタム</option></select></div>
-      <div><label class="tiny">セッション名 / メモ</label><input id="sessionName" type="text" placeholder="例: 2026-08-30 / 上方LED + 左斜光" /></div>
+    <div class="small">
+      額 → 右頬 → 左頬 → 鼻の順に登録します。<b>毎回の基準画像は上方光</b>です。
+      斜光は凹凸を強調する追加画像として任意で登録します。
     </div>
-    <div class="note" style="margin-top:10px"><b>標準:</b> 顔の上方から同じ方向・距離・強さで照らした画像を毎回1枚。必要なら同じ構図のまま斜光画像を追加します。</div>
+    <div class="grid2" style="margin-top:10px">
+      <div>
+        <label class="tiny">追加する斜光の方向</label>
+        <select id="lightingPreset">
+          <option value="none">なし（上方光のみ）</option>
+          <option value="left-raking">左からの斜光</option>
+          <option value="right-raking">右からの斜光</option>
+          <option value="custom">カスタム</option>
+        </select>
+      </div>
+      <div>
+        <label class="tiny">セッション名 / メモ</label>
+        <input id="sessionName" type="text" placeholder="例: 2026-08-30 / 上方LED + 左斜光" />
+      </div>
+    </div>
+    <div class="note" style="margin-top:10px">
+      <b>標準:</b> 顔の上方から同じ方向・距離・強さで照らした画像を毎回1枚。
+      必要なら同じ構図のまま斜光画像を追加します。
+    </div>
   </section>
 
   <section class="card">
     <h2>2. 部位</h2>
     <div class="wizard" id="wizard"></div>
-    <div class="row" style="margin-top:10px"><button id="prevStep">前へ</button><button id="nextStep" class="primary">次へ</button></div>
+    <div class="row" style="margin-top:10px">
+      <button id="prevStep">前へ</button>
+      <button id="nextStep" class="primary">次へ</button>
+    </div>
   </section>
 
   <section class="card">
-    <div class="regionTitle"><h2 id="regionHeading">3. 部位画像</h2><span id="progressText" class="tiny"></span></div>
+    <div class="regionTitle">
+      <h2 id="regionHeading">3. 部位画像</h2>
+      <span id="progressText" class="tiny"></span>
+    </div>
     <div id="regionInstruction" class="note"></div>
+
     <div class="grid2" style="margin-top:10px">
       <div>
         <label class="tiny"><b>上方光画像（標準）</b></label>
-        <div class="row" style="margin-top:6px"><button type="button" id="frontFileBtn">ファイルから選択</button><button type="button" id="frontCameraBtn" class="primary">カメラ起動</button></div>
-        <input id="frontInput" type="file" accept="image/*" hidden><input id="frontCameraInput" type="file" accept="image/*" capture="environment" hidden>
+        <div class="row" style="margin-top:6px">
+          <button type="button" id="frontFileBtn">ファイルから選択</button>
+          <button type="button" id="frontCameraBtn" class="primary">カメラ起動</button>
+        </div>
+        <input id="frontInput" type="file" accept="image/*" hidden>
+        <input id="frontCameraInput" type="file" accept="image/*" capture="environment" hidden>
         <div id="frontSourceStatus" class="tiny" style="margin-top:6px">未選択</div>
       </div>
+
       <div>
         <label class="tiny">斜光画像（任意）</label>
-        <div class="row" style="margin-top:6px"><button type="button" id="rakingFileBtn">ファイルから選択</button><button type="button" id="rakingCameraBtn" class="primary">カメラ起動</button></div>
-        <input id="rakingInput" type="file" accept="image/*" hidden><input id="rakingCameraInput" type="file" accept="image/*" capture="environment" hidden>
+        <div class="row" style="margin-top:6px">
+          <button type="button" id="rakingFileBtn">ファイルから選択</button>
+          <button type="button" id="rakingCameraBtn" class="primary">カメラ起動</button>
+        </div>
+        <input id="rakingInput" type="file" accept="image/*" hidden>
+        <input id="rakingCameraInput" type="file" accept="image/*" capture="environment" hidden>
         <div id="rakingSourceStatus" class="tiny" style="margin-top:6px">未選択</div>
       </div>
     </div>
@@ -51,32 +85,108 @@
 
   <section class="card">
     <h2>4. 解析範囲を決める</h2>
-    <p class="small">黄色い4本の境界線を指で動かしてください。<b>上方光画像をROI決定の基準</b>にし、確定した相対ROIを斜光画像にも適用します。</p>
+    <p class="small">
+      黄色い4本の境界線を指で動かしてください。<b>上方光画像をROI決定の基準</b>にし、
+      確定した相対ROIを斜光画像にも適用します。
+    </p>
     <div id="roiEditorEmpty" class="emptyBox">画像を選ぶとここでROIを調整できます。</div>
     <canvas id="roiCanvas" class="roiCanvas" hidden></canvas>
     <div id="roiStatus" class="note" style="margin-top:10px"></div>
-    <div class="row" style="margin-top:10px"><button id="resetRoiBtn">部位テンプレートに戻す</button><button id="confirmRoiBtn" class="success">この範囲で確定</button></div>
-  </section>
-
-  <section class="card">
-    <h2>5. 確認・解析</h2>
-    <div class="preview3">
-      <figure><img id="frontPreview" alt=""><figcaption>上方光（標準）</figcaption></figure>
-      <figure><img id="rakingPreview" alt=""><figcaption>斜光（任意）</figcaption></figure>
-      <figure><canvas id="analysisCanvas"></canvas><figcaption>確定ROIだけの解析結果</figcaption></figure>
+    <div class="row" style="margin-top:10px">
+      <button id="resetRoiBtn">部位テンプレートに戻す</button>
+      <button id="confirmRoiBtn" class="success">この範囲で確定</button>
     </div>
-    <div id="analysisSource" class="note" style="margin-top:10px"><b>基本:</b> 上方光を基準画像として使用。斜光があれば、現在の凹凸候補検出では斜光を優先します。</div>
-    <div class="row" style="margin-top:10px"><button id="analyzeBtn" class="success">このROIを解析</button><button id="saveRegionBtn" class="primary">この部位を保存</button></div>
-    <div class="metrics" style="margin-top:10px"><div class="metric"><span>候補数</span><strong id="mCandidates">—</strong></div><div class="metric"><span>候補面積率</span><strong id="mAreaRatio">—</strong></div><div class="metric"><span>texture roughness</span><strong id="mTexture">—</strong></div><div class="metric"><span>平均候補サイズ</span><strong id="mAvgSize">—</strong></div></div>
-    <div class="warnBox" style="margin-top:10px">v0.6.1では<b>上方光を標準撮影条件</b>として扱います。斜光は追加情報です。scar候補検出自体はまだ試作です。</div>
   </section>
 
   <section class="card">
-    <h2>6. セッションまとめ</h2>
-    <div class="tabs" id="summaryTabs"></div><div id="summaryPane" class="small" style="margin-top:10px">まだ部位は保存されていません。</div>
-    <div class="row" style="margin-top:10px"><button id="exportBtn" class="primary">JSONを書き出す</button><button id="resetBtn" class="warn">セッションをリセット</button></div>
+    <h2>5. 自動解析</h2>
+    <div class="preview3">
+      <figure>
+        <img id="frontPreview" alt="">
+        <figcaption>上方光（標準）</figcaption>
+      </figure>
+      <figure>
+        <img id="rakingPreview" alt="">
+        <figcaption>斜光（任意）</figcaption>
+      </figure>
+      <figure>
+        <canvas id="analysisCanvas" class="annotationCanvas"></canvas>
+        <figcaption>確定ROI / scar候補</figcaption>
+      </figure>
+    </div>
+
+    <div id="analysisSource" class="note" style="margin-top:10px">
+      <b>基本:</b> 上方光を基準画像として使用。斜光があれば、現在の凹凸候補検出では斜光を優先します。
+    </div>
+
+    <div class="row" style="margin-top:10px">
+      <button id="analyzeBtn" class="success">このROIを解析</button>
+    </div>
+
+    <div class="metrics" style="margin-top:10px">
+      <div class="metric"><span>現在の候補数</span><strong id="mCandidates">—</strong></div>
+      <div class="metric"><span>候補面積率</span><strong id="mAreaRatio">—</strong></div>
+      <div class="metric"><span>texture roughness</span><strong id="mTexture">—</strong></div>
+      <div class="metric"><span>平均候補サイズ</span><strong id="mAvgSize">—</strong></div>
+    </div>
+  </section>
+
+  <section class="card" id="annotationPanel" hidden>
+    <h2>6. scar候補を修正</h2>
+    <div class="small">
+      自動検出はまだ粗いので、ここで人間が訂正します。
+      <b>削除</b>で誤検出を消し、<b>追加</b>で見逃したscarを囲い、
+      <b>選択</b>して種類を変更できます。修正内容は教師データ候補としてJSONに保存されます。
+    </div>
+
+    <div class="annotationToolbar" style="margin-top:10px">
+      <div class="toolbarGroup">
+        <span class="tiny">操作</span>
+        <div class="row">
+          <button id="toolSelect" class="toolBtn active">選択</button>
+          <button id="toolAdd" class="toolBtn">＋追加</button>
+          <button id="toolDelete" class="toolBtn">削除</button>
+        </div>
+      </div>
+
+      <div class="toolbarGroup">
+        <span class="tiny">選択したscarの種類</span>
+        <div class="row typeButtons">
+          <button id="typeI" class="typeBtn" data-type="I">I / Ice-pick</button>
+          <button id="typeB" class="typeBtn" data-type="B">B / Boxcar</button>
+          <button id="typeR" class="typeBtn" data-type="R">R / Rolling</button>
+          <button id="typeU" class="typeBtn" data-type="U">？ / 不明</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="note" style="margin-top:10px">
+      <b>追加モード:</b> scarを指で囲うようにドラッグしてください。短いタップなら小さなboxを追加します。
+      <br><b>削除モード:</b> 誤検出boxをタップします。
+    </div>
+
+    <div id="annotationCounts" class="annotationCounts"></div>
+    <div id="annotationStatus" class="warnBox" style="margin-top:10px">
+      修正内容は未確定です。
+    </div>
+
+    <div class="row" style="margin-top:10px">
+      <button id="confirmAnnotationsBtn" class="success">この修正を確定</button>
+      <button id="saveRegionBtn" class="primary">この部位を保存</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>7. セッションまとめ</h2>
+    <div class="tabs" id="summaryTabs"></div>
+    <div id="summaryPane" class="small" style="margin-top:10px">まだ部位は保存されていません。</div>
+    <div class="row" style="margin-top:10px">
+      <button id="exportBtn" class="primary">JSONを書き出す</button>
+      <button id="resetBtn" class="warn">セッションをリセット</button>
+    </div>
   </section>
 </main>
+
 <script src="./app.js"></script>
 </body>
 </html>
