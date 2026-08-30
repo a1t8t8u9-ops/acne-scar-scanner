@@ -1,84 +1,19 @@
 <!doctype html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-  <meta name="theme-color" content="#111827" />
-  <link rel="manifest" href="./manifest.webmanifest" />
-  <link rel="stylesheet" href="./styles.css" />
-  <title>Acne Scar Scanner v0.3</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="stylesheet" href="./styles.css">
+<title>Acne Scar Scanner v0.4</title>
 </head>
 <body>
-<header>
-  <div>
-    <h1>Acne Scar Scanner <span>v0.3</span></h1>
-    <p>Realtime alignment PWA</p>
-  </div>
-</header>
-
+<header><div><h1>Acne Scar Scanner <span>v0.4</span></h1><p>Single-image scar analysis prototype</p></div></header>
 <main>
-  <section class="card">
-    <h2>1. 基準写真を選ぶ</h2>
-    <input id="refInput" type="file" accept="image/*" />
-    <p class="note">できれば同じ頬・同じ表情の過去写真を選びます。まず顔の位置関係を基準化します。</p>
-    <canvas id="refCanvas" class="thumb" hidden></canvas>
-  </section>
-
-  <section class="card">
-    <h2>2. カメラで位置合わせ</h2>
-
-    <div id="stage" class="stage">
-      <video id="video" autoplay muted playsinline></video>
-      <img id="ghost" alt="" />
-      <canvas id="overlay"></canvas>
-      <div id="guide" class="guide">基準写真を選択してください</div>
-      <div id="metrics" class="metrics">—</div>
-    </div>
-
-    <div class="toolbar">
-      <button id="startBtn" class="primary">カメラ開始</button>
-      <button id="switchBtn">前/後切替</button>
-      <button id="captureBtn" class="success" disabled>撮影</button>
-    </div>
-
-    <label class="slider">
-      <span>ゴースト</span>
-      <input id="ghostOpacity" type="range" min="0" max="100" value="30">
-      <output id="ghostOpacityOut">30%</output>
-    </label>
-
-    <div class="status-grid">
-      <div><span>位置</span><strong id="posStatus">—</strong></div>
-      <div><span>大きさ</span><strong id="scaleStatus">—</strong></div>
-      <div><span>傾き</span><strong id="rotStatus">—</strong></div>
-    </div>
-  </section>
-
-  <section class="card">
-    <h2>3. 撮影結果</h2>
-    <div class="pair">
-      <figure>
-        <img id="refPreview" alt="">
-        <figcaption>Reference</figcaption>
-      </figure>
-      <figure>
-        <img id="capturePreview" alt="">
-        <figcaption>New</figcaption>
-      </figure>
-    </div>
-    <button id="compareBtn" class="primary" disabled>重ね合わせ確認</button>
-    <canvas id="compareCanvas" class="compare" hidden></canvas>
-  </section>
-
-  <section class="card">
-    <h2>この版の判定</h2>
-    <p class="warning">
-      v0.3は「顔の中心・顔サイズ・傾き」を合わせるための試作です。
-      ニキビ跡の深さや改善率はまだ計算しません。次段階で頬ROIを固定し、局所位置合わせを追加します。
-    </p>
-  </section>
-</main>
-
-<script type="module" src="./app.js"></script>
-</body>
-</html>
+<section class="card hero"><h2>写真1枚を解析</h2><p>まずここを本体にします。顔写真でも、頬だけのアップでもOKです。</p><label class="file-button">写真を選ぶ<input id="imageInput" type="file" accept="image/*"></label><div id="fileName" class="note">未選択</div></section>
+<section class="card" id="analysisCard"><div class="section-head"><h2>解析画像</h2><span id="modelStatus" class="pill">準備中</span></div><div class="canvas-wrap"><canvas id="viewCanvas"></canvas><div id="emptyState">写真を選ぶとここに表示されます</div></div><div class="controls"><label><span>解析範囲</span><select id="roiMode"><option value="auto">自動（頬優先）</option><option value="full">画像全体</option><option value="left">左頬</option><option value="right">右頬</option></select></label><label><span>検出感度</span><div class="range-row"><input id="sensitivity" type="range" min="1" max="100" value="55"><output id="sensitivityOut">55</output></div></label></div><button id="analyzeBtn" class="primary wide" disabled>この1枚を解析</button><div id="analysisMessage" class="note">画像内の局所的な凹み・暗部・エッジ形状を解析します。</div></section>
+<section class="card" id="resultCard" hidden><h2>解析結果</h2><div class="metric-grid"><div><span>凹み候補</span><strong id="candidateCount">—</strong></div><div><span>候補面積率</span><strong id="areaRatio">—</strong></div><div><span>Texture roughness</span><strong id="roughness">—</strong></div><div><span>解析範囲</span><strong id="roiName">—</strong></div></div><div class="type-grid"><div><span class="dot ice"></span>I型（狭く鋭い形態）<strong id="iceCount">0</strong></div><div><span class="dot box"></span>B型（境界明瞭な形態）<strong id="boxCount">0</strong></div><div><span class="dot roll"></span>R型（幅広い形態）<strong id="rollCount">0</strong></div></div><p class="small">I/B/Rは画像形態上の暫定分類です。臨床診断ではありません。</p><h3>候補一覧</h3><div id="candidateList" class="candidate-list"></div></section>
+<section class="card"><h2>この版でできること / まだできないこと</h2><div class="two-col"><div><h3>できる</h3><ul><li>1枚画像から顔を検出</li><li>頬ROIを自動設定</li><li>局所的な凹み候補を抽出</li><li>候補ごとの位置・面積・幅・エッジ強度</li><li>形態からI/B/R型の暫定分類</li></ul></div><div><h3>まだ</h3><ul><li>真の深さ mm</li><li>医師レベルの確定分類</li><li>毛穴・影・色素沈着との完全分離</li><li>治療効果の確定改善率</li></ul></div></div><p class="warning">普通のRGB写真1枚では照明による影と実際の凹凸を完全には分離できません。v0.4は測定エンジンの第一段階です。</p></section>
+<section class="card muted"><h2>次にやること</h2><p>候補をタップして「本当にscar / 違う」を訂正できるアノテーション機能を追加し、そのデータで専用モデルを学習します。</p></section>
+</main><script type="module" src="./app.js"></script></body></html>
