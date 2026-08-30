@@ -8,7 +8,9 @@ main{max-width:920px;margin:auto;padding:14px 14px calc(34px + env(safe-area-ins
 h2{font-size:16px;margin:0 0 10px}.small{font-size:12px;color:var(--muted);line-height:1.6}.tiny{font-size:11px;color:var(--muted)}
 .badge{display:inline-block;font-size:11px;padding:3px 8px;border-radius:999px;background:#e0e7ff;color:#3730a3}
 .wizard{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.step{border:0;padding:10px;border-radius:12px;text-align:center;background:#eef2ff;font-size:12px;font-weight:700;color:#3730a3}.step.active{background:var(--blue);color:#fff}.step.done{background:#d1fae5;color:#065f46}
-.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}button{appearance:none;border:0;border-radius:11px;padding:10px 13px;font-weight:700;background:#e5e7eb;color:#111827}button.primary{background:var(--blue);color:#fff}button.success{background:var(--green);color:#fff}button.warn{background:#fff7ed;color:#9a3412}button:disabled{opacity:.45}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button{appearance:none;border:0;border-radius:11px;padding:10px 13px;font-weight:700;background:#e5e7eb;color:#111827}
+button.primary{background:var(--blue);color:#fff}button.success{background:var(--green);color:#fff}button.warn{background:#fff7ed;color:#9a3412}button:disabled{opacity:.45}
 select,input[type=text],textarea{width:100%;padding:10px;border-radius:11px;border:1px solid var(--line);background:#fff;font:inherit}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:760px){.grid2{grid-template-columns:1fr}}
 .preview3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}@media(max-width:760px){.preview3{grid-template-columns:1fr}}
@@ -18,3 +20,13 @@ figure{margin:0}figure img,figure canvas{width:100%;display:block;border-radius:
 .tabs{display:flex;gap:8px;flex-wrap:wrap}.tabs button.active{background:#111827;color:#fff}.regionTitle{display:flex;justify-content:space-between;align-items:center;gap:8px}.list{margin:0;padding-left:18px}.list li{margin:4px 0;font-size:12px;color:#374151}
 .roiCanvas{display:block;width:100%;max-width:680px;margin:8px auto 0;border-radius:14px;background:#0b1020;touch-action:none;user-select:none;-webkit-user-select:none}
 .emptyBox{min-height:180px;border:2px dashed #cbd5e1;border-radius:14px;display:flex;align-items:center;justify-content:center;text-align:center;padding:18px;color:#64748b;background:#f8fafc;font-size:12px}
+.annotationCanvas{touch-action:none;user-select:none;-webkit-user-select:none}
+.annotationToolbar{display:grid;gap:10px}
+.toolbarGroup{padding:10px;border-radius:12px;background:#f8fafc;border:1px solid #e5e7eb}
+.toolBtn.active{background:#111827;color:#fff}
+.typeBtn.active{outline:3px solid #111827;outline-offset:1px}
+.annotationCounts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.annotationCount{padding:9px;border-radius:10px;background:#f8fafc;text-align:center}
+.annotationCount span{display:block;font-size:10px;color:var(--muted)}
+.annotationCount strong{display:block;margin-top:2px}
+@media(max-width:480px){.annotationCounts{grid-template-columns:1fr 1fr}.typeButtons button{flex:1 1 44%}}
