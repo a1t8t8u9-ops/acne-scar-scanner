@@ -1,19 +1,111 @@
 <!doctype html>
 <html lang="ja">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#111827">
-<link rel="manifest" href="./manifest.webmanifest">
-<link rel="stylesheet" href="./styles.css">
-<title>Acne Scar Scanner v0.4</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>Acne Scar Scanner v0.5</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-<header><div><h1>Acne Scar Scanner <span>v0.4</span></h1><p>Single-image scar analysis prototype</p></div></header>
+<header>
+  <h1>Acne Scar Scanner <span class="badge">v0.5</span></h1>
+  <p>部位別セッション型プロトタイプ</p>
+</header>
+
 <main>
-<section class="card hero"><h2>写真1枚を解析</h2><p>まずここを本体にします。顔写真でも、頬だけのアップでもOKです。</p><label class="file-button">写真を選ぶ<input id="imageInput" type="file" accept="image/*"></label><div id="fileName" class="note">未選択</div></section>
-<section class="card" id="analysisCard"><div class="section-head"><h2>解析画像</h2><span id="modelStatus" class="pill">準備中</span></div><div class="canvas-wrap"><canvas id="viewCanvas"></canvas><div id="emptyState">写真を選ぶとここに表示されます</div></div><div class="controls"><label><span>解析範囲</span><select id="roiMode"><option value="auto">自動（頬優先）</option><option value="full">画像全体</option><option value="left">左頬</option><option value="right">右頬</option></select></label><label><span>検出感度</span><div class="range-row"><input id="sensitivity" type="range" min="1" max="100" value="55"><output id="sensitivityOut">55</output></div></label></div><button id="analyzeBtn" class="primary wide" disabled>この1枚を解析</button><div id="analysisMessage" class="note">画像内の局所的な凹み・暗部・エッジ形状を解析します。</div></section>
-<section class="card" id="resultCard" hidden><h2>解析結果</h2><div class="metric-grid"><div><span>凹み候補</span><strong id="candidateCount">—</strong></div><div><span>候補面積率</span><strong id="areaRatio">—</strong></div><div><span>Texture roughness</span><strong id="roughness">—</strong></div><div><span>解析範囲</span><strong id="roiName">—</strong></div></div><div class="type-grid"><div><span class="dot ice"></span>I型（狭く鋭い形態）<strong id="iceCount">0</strong></div><div><span class="dot box"></span>B型（境界明瞭な形態）<strong id="boxCount">0</strong></div><div><span class="dot roll"></span>R型（幅広い形態）<strong id="rollCount">0</strong></div></div><p class="small">I/B/Rは画像形態上の暫定分類です。臨床診断ではありません。</p><h3>候補一覧</h3><div id="candidateList" class="candidate-list"></div></section>
-<section class="card"><h2>この版でできること / まだできないこと</h2><div class="two-col"><div><h3>できる</h3><ul><li>1枚画像から顔を検出</li><li>頬ROIを自動設定</li><li>局所的な凹み候補を抽出</li><li>候補ごとの位置・面積・幅・エッジ強度</li><li>形態からI/B/R型の暫定分類</li></ul></div><div><h3>まだ</h3><ul><li>真の深さ mm</li><li>医師レベルの確定分類</li><li>毛穴・影・色素沈着との完全分離</li><li>治療効果の確定改善率</li></ul></div></div><p class="warning">普通のRGB写真1枚では照明による影と実際の凹凸を完全には分離できません。v0.4は測定エンジンの第一段階です。</p></section>
-<section class="card muted"><h2>次にやること</h2><p>候補をタップして「本当にscar / 違う」を訂正できるアノテーション機能を追加し、そのデータで専用モデルを学習します。</p></section>
-</main><script type="module" src="./app.js"></script></body></html>
+  <section class="card">
+    <h2>1. セッション設定</h2>
+    <div class="small">顔全体1枚ではなく、<b>額 → 右頬 → 左頬 → 鼻</b> を順番に登録します。各部位ごとに「正面光」と「斜光」を分けて保存できます。</div>
+    <div class="grid2" style="margin-top:10px">
+      <div>
+        <label class="tiny">照明プリセット</label>
+        <select id="lightingPreset">
+          <option value="front">正面の均一光</option>
+          <option value="left-raking">左からの斜光</option>
+          <option value="right-raking">右からの斜光</option>
+          <option value="top-raking">上からの斜光</option>
+          <option value="custom">カスタム</option>
+        </select>
+      </div>
+      <div>
+        <label class="tiny">セッション名 / メモ</label>
+        <input id="sessionName" type="text" placeholder="例: 2026-08-30 夜 / 机のLED右45°" />
+      </div>
+    </div>
+    <div class="note" style="margin-top:10px">
+      推奨: 同じ部屋・同じ距離・同じ向き・同じ光。<br>
+      特にニキビ跡の凹みを見るなら、<b>左右どちらか一方向からの斜光</b>を毎回統一するのがよいです。
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>2. 撮影順</h2>
+    <div class="wizard" id="wizard"></div>
+    <div class="row" style="margin-top:10px">
+      <button id="prevStep">前へ</button>
+      <button id="nextStep" class="primary">次へ</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="regionTitle">
+      <h2 id="regionHeading">3. 部位登録</h2>
+      <span id="progressText" class="tiny"></span>
+    </div>
+    <div id="regionInstruction" class="note"></div>
+
+    <div class="grid2" style="margin-top:10px">
+      <div>
+        <label class="tiny">この部位の正面光画像</label>
+        <input id="frontInput" type="file" accept="image/*" capture="environment" />
+      </div>
+      <div>
+        <label class="tiny">この部位の斜光画像</label>
+        <input id="rakingInput" type="file" accept="image/*" capture="environment" />
+      </div>
+    </div>
+
+    <div class="previewWrap" style="margin-top:12px">
+      <figure>
+        <img id="frontPreview" alt="">
+        <figcaption>正面光</figcaption>
+      </figure>
+      <figure>
+        <canvas id="analysisCanvas"></canvas>
+        <figcaption>解析結果（斜光画像ベース）</figcaption>
+      </figure>
+    </div>
+
+    <div class="row" style="margin-top:10px">
+      <button id="analyzeBtn" class="success">この部位を解析</button>
+      <button id="saveRegionBtn" class="primary">この部位を保存</button>
+    </div>
+
+    <div class="metrics" style="margin-top:10px">
+      <div class="metric"><span>候補数</span><strong id="mCandidates">—</strong></div>
+      <div class="metric"><span>候補面積率</span><strong id="mAreaRatio">—</strong></div>
+      <div class="metric"><span>texture roughness</span><strong id="mTexture">—</strong></div>
+      <div class="metric"><span>平均候補サイズ</span><strong id="mAvgSize">—</strong></div>
+    </div>
+
+    <div class="warnBox" style="margin-top:10px">
+      この版は「本物のscar AI」ではありません。<br>
+      斜光画像の中の局所陰影・エッジ・小さな暗部を使って、<b>凹み候補</b>を可視化しています。髪の影・輪郭・強い反射で誤検出することがあります。
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>4. セッションまとめ</h2>
+    <div class="tabs" id="summaryTabs"></div>
+    <div id="summaryPane" class="small" style="margin-top:10px">まだ部位は保存されていません。</div>
+    <div class="row" style="margin-top:10px">
+      <button id="exportBtn" class="primary">JSONを書き出す</button>
+      <button id="resetBtn" class="warn">セッションをリセット</button>
+    </div>
+  </section>
+</main>
+<script src="./app.js"></script>
+</body>
+</html>
